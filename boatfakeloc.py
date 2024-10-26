@@ -12,8 +12,8 @@ app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 # Base coordinates near the target location
-BASE_LAT = 37.866942
-BASE_LON = -122.315452
+BASE_LAT = 37.86374
+BASE_LON = -122.35495
 
 # Generate a slightly random location around the base coordinates
 def generate_location():
