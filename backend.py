@@ -128,12 +128,13 @@ def handle_gui_data(data):
 
         # Prepare the payload as a JSON string to send over XBee
         payload = {
-            "type": "command",
             "boat_name": boat_name,
             "command_mode": data.get('command_mode', 'manual'),
             "rudder_angle": data.get('rudder_angle', 0),
             "sail_angle": data.get('sail_angle', 0),
             "throttle": data.get('throttle', 0),
+            "longitude": data.get('longitude', 37.86412341234),
+            "latitude": data.get('latitude', -122.324123412341)
             # Include other command data as needed
         }
         payload_json = json.dumps(payload)
