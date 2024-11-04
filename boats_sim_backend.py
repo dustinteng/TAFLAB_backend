@@ -39,7 +39,7 @@ class Boat:
         # Add target latitude and longitude
         self.target_lat = None
         self.target_lng = None
-        self.status = "Idle"
+        self.status = "station-keeping"
         self.notification = None
 
     def update(self):
@@ -108,7 +108,7 @@ class Boat:
             # No target set; boat remains idle
             self.velocity["lat"] = 0
             self.velocity["lng"] = 0
-            self.status = "Idle"
+            self.status = "station-keeping"
 
         # Keep boats within certain bounds (optional)
         # lat_range = (BASE_LAT - 0.01, BASE_LAT + 0.01)
@@ -133,13 +133,13 @@ class Boat:
             "boat_number": self.boat_number,
             "lat": round(self.lat, 6),  # Latitude rounded to 6 decimal places
             "lng": round(self.lng, 6),  # Longitude rounded to 6 decimal places
-            "u-wind": float(self.u_wind),
-            "v-wind": float(self.v_wind),
-            "chaos": float(self.chaos),
+            "u-wind": round(self.u_wind,2),
+            "v-wind": round(self.v_wind,2),
+            "chaos": round(self.chaos,2),
             "temperature": round(float(self.temperature), 1),  # Temperature rounded to 1 decimal place
             "velocity": {
-                "lat": float(self.velocity["lat"]),
-                "lng": float(self.velocity["lng"]),
+                "lat": round(self.velocity["lat"],2),
+                "lng": round(self.velocity["lng"],2),
             },
             "status": self.status,
         }
