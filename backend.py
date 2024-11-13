@@ -53,25 +53,20 @@ def open_xbee_device():
 def xbee_dispatcher():
     print("XBee dispatcher thread started.")
     while True:
-        # Handle incoming messages
         try:
+            # Handle incoming messages
             xbee_message = device.read_data()
             if xbee_message:
                 incoming_queue.put(xbee_message)
             else:
                 time.sleep(0.1)
-        except Exception as e:
-            print(f"Error in xbee_dispatcher (reading): {e}")
-            traceback.print_exc()
-            time.sleep(1)
-
-        # Handle outgoing messages
-        try:
+                
+            # Handle outgoing messages
             if not outgoing_queue.empty():
                 payload = outgoing_queue.get()
                 send_via_xbee(payload)
         except Exception as e:
-            print(f"Error in xbee_dispatcher (sending): {e}")
+            print(f"Error in xbee_dispatcher: {e}")
             traceback.print_exc()
             time.sleep(1)
 
@@ -87,7 +82,6 @@ def send_via_xbee(payload):
                 device.send_data_async(remote_device, payload_json)
                 print(f"Sent data to {boat_id}: {payload_json}")
             else:
-                # If boat not in active_boats, send broadcast
                 device.send_data_broadcast(payload_json)
                 print(f"Boat {boat_id} not found, sent broadcast: {payload_json}")
     except Exception as e:
@@ -117,8 +111,10 @@ def process_incoming_message(xbee_message):
             register_boat(boat_id, xbee_message)
         elif message_type == 'hb':
             handle_heartbeat(boat_id, data, xbee_message)
-        elif message_type == 'dt':
-            handle_data_transfer(boat_id, data, xbee_message)
+        elif message_type == 'dt1':
+            handle_location_data(boat_id, data, xbee_message)
+        elif message_type == 'dt2':
+            handle_magnetic_data(boat_id, data, xbee_message)
         else:
             print(f"Unknown message type '{message_type}' from boat '{boat_id}'")
     except Exception as e:
@@ -126,7 +122,6 @@ def process_incoming_message(xbee_message):
         traceback.print_exc()
 
 def register_boat(boat_id, xbee_message):
-    """Register or update a boat's information."""
     try:
         address = xbee_message.remote_device.get_64bit_addr()
         with active_boats_lock:
@@ -141,7 +136,6 @@ def register_boat(boat_id, xbee_message):
         traceback.print_exc()
 
 def handle_heartbeat(boat_id, data, xbee_message):
-    """Update last seen for the boat's heartbeat."""
     try:
         with active_boats_lock:
             if boat_id not in active_boats:
@@ -154,7 +148,7 @@ def handle_heartbeat(boat_id, data, xbee_message):
                     'status': data.get('s', 'unknown'),
                     'notification': data.get('n', '')
                 }
-                print(f"Boat {boat_id} automatically registered via heartbeat message.")
+                print(f"Boat {boat_id} automatically registered via heartbeat.")
             else:
                 active_boats[boat_id]['last_seen'] = time.time()
                 active_boats[boat_id]['status'] = data.get('s', 'unknown')
@@ -164,41 +158,72 @@ def handle_heartbeat(boat_id, data, xbee_message):
         print(f"Error in handle_heartbeat: {e}")
         traceback.print_exc()
 
-def handle_data_transfer(boat_id, data, xbee_message):
-    """Handle data_transfer messages from the boat."""
+def handle_location_data(boat_id, data, xbee_message):
     try:
         with active_boats_lock:
             if boat_id not in active_boats:
-                # Automatically register the boat using the data transfer message
+                # Automatically register the boat using the location data message
                 address = xbee_message.remote_device.get_64bit_addr()
                 active_boats[boat_id] = {
                     'address': address,
                     'last_seen': time.time(),
-                    'data': data,
-                    'status': 'unknown',
-                    'notification': ''
+                    'data': {}
                 }
-                print(f"Boat {boat_id} automatically registered via data_transfer message.")
-            else:
-                active_boats[boat_id]['data'] = data
-                active_boats[boat_id]['last_seen'] = time.time()
-                print(f"Received data_transfer from {boat_id}: {data}")
+                print(f"Boat {boat_id} automatically registered via location data.")
+            
+            # Update boat data
+            active_boats[boat_id]['data'].update({
+                'latitude': data.get('lt', 0.0),
+                'longitude': data.get('lg', 0.0),
+                'wind_velocity': data.get('w', 0.0),
+                'temperature': data.get('tp', 0.0)
+            })
+            # Update last seen time
+            active_boats[boat_id]['last_seen'] = time.time()
+            print(f"Received location/environmental data from {boat_id}: {data}")
 
-        # Emit data to the frontend
+        # Prepare data with time_now for frontend
+        time_now = time.time()
         with app.app_context():
-            socketio.emit('boat_data', {'boat_id': boat_id, 'data': data})
+            socketio.emit('boat_data', {
+                'boat_id': boat_id,
+                'data': active_boats[boat_id]['data']
+            })
     except Exception as e:
-        print(f"Error in handle_data_transfer: {e}")
+        print(f"Error in handle_location_data: {e}")
         traceback.print_exc()
 
-# Start dispatcher and message processor threads
-def start_threads():
-    threading.Thread(target=xbee_dispatcher, daemon=True).start()
-    threading.Thread(target=message_processor, daemon=True).start()
 
-# Periodic Tasks
+
+def handle_magnetic_data(boat_id, data, xbee_message):
+    try:
+        with active_boats_lock:
+            if boat_id not in active_boats:
+                # Automatically register the boat using the magnetic data message
+                address = xbee_message.remote_device.get_64bit_addr()
+                active_boats[boat_id] = {
+                    'address': address,
+                    'last_seen': time.time(),
+                    'data': {}
+                }
+                print(f"Boat {boat_id} automatically registered via magnetic data.")
+            active_boats[boat_id]['data']['magnetic_field'] = {
+                'x': data.get('mx', 0.0),
+                'y': data.get('my', 0.0),
+                'z': data.get('mz', 0.0)
+            }
+            active_boats[boat_id]['last_seen'] = time.time()
+            print(f"Received magnetic field data from {boat_id}: {data}")
+
+        with app.app_context():
+            socketio.emit('boat_data', {'boat_id': boat_id, 'data': active_boats[boat_id]['data']})
+    except Exception as e:
+        print(f"Error in handle_magnetic_data: {e}")
+        traceback.print_exc()
+
+# Periodic cleanup of inactive boats
 def cleanup_inactive_boats():
-    TIMEOUT = 15  # seconds
+    TIMEOUT = 15
     while True:
         try:
             current_time = time.time()
@@ -214,67 +239,30 @@ def cleanup_inactive_boats():
             traceback.print_exc()
             time.sleep(TIMEOUT)
 
-def broadcast_locations():
-    with app.app_context():
-        while True:
-            try:
-                with active_boats_lock:
-                    boat_data = []
-                    for boat_id, boat_info in active_boats.items():
-                        last_seen = boat_info.get('last_seen', 0)
-                        status = 'active' if time.time() - last_seen < 30 else 'inactive'
-                        data = boat_info.get('data', {})
-                        location = {
-                            'latitude': data.get('lat', 0.0),
-                            'longitude': data.get('lng', 0.0)
-                        }
-                        boat_data.append({
-                            'boat_id': boat_id,
-                            'location': location,
-                            'status': status
-                        })
-                socketio.emit('boat_locations', boat_data)
-                time.sleep(1)
-            except Exception as e:
-                print(f"Error in broadcast_locations: {e}")
-                traceback.print_exc()
-                time.sleep(1)
+# Start dispatcher and message processor threads
+def start_threads():
+    threading.Thread(target=xbee_dispatcher, daemon=True).start()
+    threading.Thread(target=message_processor, daemon=True).start()
 
-# Start periodic tasks
+# Start periodic cleanup task
 def start_periodic_tasks():
     threading.Thread(target=cleanup_inactive_boats, daemon=True).start()
-    threading.Thread(target=broadcast_locations, daemon=True).start()
 
 # Flask-SocketIO Event Handlers
 @socketio.on('connect')
 def handle_connect():
-    try:
-        sid = request.sid
-        client_ip = request.remote_addr
-        connect_time = time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())
-        with clients_lock:
-            clients[sid] = {'ip': client_ip, 'connect_time': connect_time}
-        print(f"Client connected: {sid} from IP {client_ip} at {connect_time}")
-    except Exception as e:
-        print(f"Error in handle_connect: {e}")
-        traceback.print_exc()
+    sid = request.sid
+    client_ip = request.remote_addr
+    connect_time = time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime())
+    with clients_lock:
+        clients[sid] = {'ip': client_ip, 'connect_time': connect_time}
+    print(f"Client connected: {sid} from IP {client_ip} at {connect_time}")
 
 @socketio.on('request_boat_list')
 def handle_request_boat_list():
     try:
         with active_boats_lock:
-            boat_list = []
-            for boat_id, boat_info in active_boats.items():
-                data = boat_info.get('data', {})
-                location = {
-                    'latitude': data.get('lat', 37.86118),
-                    'longitude': data.get('lng', -122.35204)
-                }
-                boat_list.append({
-                    'boat_id': boat_id,
-                    'location': location,
-                    'status': boat_info.get('status', 'unknown')
-                })
+            boat_list = [{'boat_id': boat_id, 'data': info['data']} for boat_id, info in active_boats.items()]
         emit('boat_locations', boat_list)
         print("Sent boat list to frontend.")
     except Exception as e:
@@ -289,31 +277,21 @@ def handle_gui_data(data):
             print("No boat_id specified in the data.")
             return
 
-        # Determine mode and construct payload accordingly
         mode = data.get('md')
+        payload = {
+            "t": "cmd",
+            "id": boat_id,
+            "md": mode,
+        }
 
-        if mode == 'mnl':  # Manual mode
-            payload = {
-                "t": "cmd",
-                "id": boat_id,
-                "md": "mnl",
-                "r": data.get('r', 0),
-                "s": data.get('s', 0),
-                "th": data.get('th', 0)
-            }
-        elif mode == 'auto':  # Autonomous mode
-            payload = {
-                "t": "cmd",
-                "id": boat_id,
-                "md": "auto",
-                "tlat": data.get('tlat', 0),
-                "tlng": data.get('tlng', 0)
-            }
+        if mode == 'mnl':
+            payload.update({"r": data.get('r', 0), "s": data.get('s', 0), "th": data.get('th', 0)})
+        elif mode == 'auto':
+            payload.update({"tlat": data.get('tlat', 0), "tlng": data.get('tlng', 0)})
         else:
             print("Invalid mode specified.")
             return
 
-        # Place the payload in the outgoing queue
         outgoing_queue.put(payload)
     except Exception as e:
         print(f"Error in handle_gui_data: {e}")
@@ -321,17 +299,11 @@ def handle_gui_data(data):
 
 @socketio.on('disconnect')
 def handle_disconnect():
-    try:
-        sid = request.sid
-        with clients_lock:
-            client_info = clients.pop(sid, None)
-        if client_info:
-            print(f"Client disconnected: {sid} from IP {client_info['ip']} at {client_info['connect_time']}")
-        else:
-            print(f"Client disconnected: {sid} with no additional information.")
-    except Exception as e:
-        print(f"Error in handle_disconnect: {e}")
-        traceback.print_exc()
+    sid = request.sid
+    with clients_lock:
+        client_info = clients.pop(sid, None)
+    if client_info:
+        print(f"Client disconnected: {sid} from IP {client_info['ip']}")
 
 # Run the server
 if __name__ == '__main__':
