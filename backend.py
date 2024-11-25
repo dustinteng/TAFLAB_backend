@@ -1,4 +1,5 @@
 import json
+import datetime
 import time
 import threading
 from threading import Lock
@@ -206,21 +207,25 @@ def handle_dt_1(boat_id, data, xbee_message):
             active_boats[boat_id]['data'].update({
                 'latitude': data.get('lt', 0.0),
                 'longitude': data.get('lg', 0.0),
-                'wind_velocity': data.get('w', 0.0),
+                'wind_dir': data.get('w', 0.0),
                 'temperature': data.get('tp', 0.0)
             })
             active_boats[boat_id]['last_seen'] = time.time()
             print(f"Received location/environmental data from {boat_id}: {data}")
 
-        time_now = time.time()
+        # Add timestamp here
+        time_now = datetime.datetime.utcnow().isoformat()
+
         with app.app_context():
             socketio.emit('boat_data', {
                 'boat_id': boat_id,
-                'data': active_boats[boat_id]['data']
+                'data': active_boats[boat_id]['data'],
+                'timestamp': time_now  # Include timestamp
             })
     except Exception as e:
         print(f"Error in handle_dt_1: {e}")
         traceback.print_exc()
+
 
 def handle_dt_2(boat_id, data, xbee_message):
     try:
@@ -241,8 +246,14 @@ def handle_dt_2(boat_id, data, xbee_message):
             active_boats[boat_id]['last_seen'] = time.time()
             print(f"Received magnetic field data from {boat_id}: {data}")
 
+        # Add timestamp here
+        time_now = datetime.datetime.utcnow().isoformat()
         with app.app_context():
-            socketio.emit('boat_data', {'boat_id': boat_id, 'data': active_boats[boat_id]['data']})
+            socketio.emit('boat_data', {
+                'boat_id': boat_id,
+                'data': active_boats[boat_id]['data'],
+                'timestamp': time_now  # Include timestamp
+            })
     except Exception as e:
         print(f"Error in handle_dt_2: {e}")
         traceback.print_exc()
@@ -250,7 +261,7 @@ def handle_dt_2(boat_id, data, xbee_message):
 
 # Periodic cleanup of inactive boats
 def cleanup_inactive_boats():
-    TIMEOUT = 15
+    TIMEOUT = 10
     while True:
         try:
             current_time = time.time()
