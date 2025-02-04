@@ -125,7 +125,7 @@ def dt_requester():
                     }
                     outgoing_queue.put(request_payload)
                     print(f"Requested data from boat {boat_id}")
-            time.sleep(2)  # Request data every 2 seconds
+            time.sleep(1)  # Request data every 1 seconds
         except Exception as e:
             print(f"Error in dt_requester: {e}")
             traceback.print_exc()
@@ -135,7 +135,7 @@ def dt_requester():
 def process_incoming_message(xbee_message):
     try:
         if not xbee_ready:
-            print("Simulating incoming XBee message processing")
+            print(" incoming XBee message processing")
             return  # Simulate behavior without processing
         data = json.loads(xbee_message.data.decode())
         message_type = data.get('t')
@@ -260,7 +260,7 @@ def handle_dt_2(boat_id, data, xbee_message):
 
 # Periodic cleanup of inactive boats
 def cleanup_inactive_boats():
-    TIMEOUT = 10
+    TIMEOUT = 6
     while True:
         try:
             current_time = time.time()
@@ -280,7 +280,7 @@ def cleanup_inactive_boats():
 def start_threads():
     threading.Thread(target=xbee_dispatcher, daemon=True).start()
     threading.Thread(target=message_processor, daemon=True).start()
-    # threading.Thread(target=dt_requester, daemon=True).start()  # Start the data requester thread
+    threading.Thread(target=dt_requester, daemon=True).start()  # Start the data requester thread
 
 
 # Start periodic cleanup task
