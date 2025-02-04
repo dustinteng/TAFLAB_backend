@@ -202,16 +202,14 @@ def handle_dt_1(boat_id, data, xbee_message):
                     'last_seen': time.time(),
                     'data': {}
                 }
-                print(f"Boat {boat_id} automatically registered via location data.")
+                print(f"Boat {boat_id} automatically registered via DT1.")
             
             active_boats[boat_id]['data'].update({
                 'latitude': data.get('lt', 0.0),
-                'longitude': data.get('lg', 0.0),
-                'wind_dir': data.get('w', 0.0),
-                'temperature': data.get('tp', 0.0)
+                'longitude': data.get('lg', 0.0)
             })
             active_boats[boat_id]['last_seen'] = time.time()
-            print(f"Received location/environmental data from {boat_id}: {data}")
+            print(f"Received DT 1 data from {boat_id}: {data}")
 
         # Add timestamp here
         time_now = datetime.datetime.utcnow().isoformat()
@@ -237,12 +235,13 @@ def handle_dt_2(boat_id, data, xbee_message):
                     'last_seen': time.time(),
                     'data': {}
                 }
-                print(f"Boat {boat_id} automatically registered via magnetic data.")
-            active_boats[boat_id]['data']['magnetic_field'] = {
-                'x': data.get('mx', 0.0),
-                'y': data.get('my', 0.0),
-                'z': data.get('mz', 0.0)
-            }
+                print(f"Boat {boat_id} automatically registered via DT2.")
+
+            active_boats[boat_id]['data'].update({
+                'wind_dir': data.get('w', 0.0),
+                'temperature': data.get('tp', 0.0),
+                'heading': data.get('h',0.0)
+            })
             active_boats[boat_id]['last_seen'] = time.time()
             print(f"Received magnetic field data from {boat_id}: {data}")
 
