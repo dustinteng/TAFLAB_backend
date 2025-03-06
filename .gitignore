@@ -1,0 +1,16 @@
+# Ignore Python cache files
+__pycache__/
+/__pycache__/
+__pycache__/*.pyc
+*.py[cod]
+
+# Ignore virtual environments
+venv/
+.env/
+
+#ignore data 
+/csv_data
+/csv_data_sent
+
+#ignore config.json
+config.json
