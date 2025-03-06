@@ -3,6 +3,7 @@ import datetime
 import os
 import time
 import config
+import requests
 
 # Ensure CSV directory exists
 if not os.path.exists(config.CSV_DIR):
@@ -32,3 +33,16 @@ def periodic_csv_writer():
         if data_to_save:
             write_data_to_csv(data_to_save)
         time.sleep(300)  # 5 minutes
+
+def fetch_latest_data():
+    """Fetch the latest boat data from the database API."""
+    try:
+        response = requests.get(config.DATABASE_API_URL, timeout=10)
+        if response.status_code == 200:
+            return response.json()  # Ensure your DB API returns JSON
+        else:
+            print(f"Error fetching data from database. Status: {response.status_code}")
+            return []
+    except Exception as e:
+        print(f"Database fetch error: {e}")
+        return []
