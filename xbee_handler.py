@@ -195,6 +195,7 @@ def handle_dt_2(boat_id, data, xbee_message):
                 }
                 print(f"Boat {boat_id} automatically registered via DT2.")
 
+            # Update DT2-specific fields
             config.active_boats[boat_id]['data'].update({
                 'wind_dir': data.get('w', 0.0),
                 'temperature': data.get('tp', 0.0),
@@ -203,6 +204,7 @@ def handle_dt_2(boat_id, data, xbee_message):
             config.active_boats[boat_id]['last_seen'] = time.time()
             print(f"Received DT 2 data from {boat_id}: {data}")
 
+        # Emit updated data to the frontend
         time_now = datetime.datetime.utcnow().isoformat()
         with config.app.app_context():
             config.socketio.emit('boat_data', {
@@ -210,9 +212,20 @@ def handle_dt_2(boat_id, data, xbee_message):
                 'data': config.active_boats[boat_id]['data'],
                 'timestamp': time_now
             })
+
+        # **Log the current snapshot of the boat's data**
+        log_entry = {
+            "timestamp": time_now,
+            "boat_id": boat_id,
+        }
+        # Merge the boat's current data into the snapshot
+        log_entry.update(config.active_boats[boat_id]['data'])
+        with config.data_log_lock:
+            config.data_log.append(log_entry)
     except Exception as e:
         print(f"Error in handle_dt_2: {e}")
         traceback.print_exc()
+
 
 def cleanup_inactive_boats():
     TIMEOUT = 6

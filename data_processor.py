@@ -10,8 +10,15 @@ if not os.path.exists(config.CSV_DIR):
 
 def write_data_to_csv(data):
     timestamp = datetime.datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-    filename = os.path.join(config.CSV_DIR, f"data_{timestamp}.csv")
-    fieldnames = data[0].keys() if data else []
+    filename = os.path.join(config.CSV_DIR, f"{timestamp}_data.csv")
+    # Determine fieldnames by combining all keys present in the data entries.
+    if data:
+        fieldnames = set()
+        for row in data:
+            fieldnames.update(row.keys())
+        fieldnames = list(fieldnames)
+    else:
+        fieldnames = []
     try:
         with open(filename, mode="w", newline="") as csvfile:
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
@@ -24,11 +31,13 @@ def write_data_to_csv(data):
 
 def periodic_csv_writer():
     while True:
-        with config.active_boats_lock:
-            data_to_save = [
-                {"boat_id": boat_id, **info["data"], "last_seen": info["last_seen"]}
-                for boat_id, info in config.active_boats.items()
-            ]
-        if data_to_save:
-            write_data_to_csv(data_to_save)
-        time.sleep(300)  # 5 minutes
+        # Wait for 5 minutes (300 seconds)
+        time.sleep(60)
+        with config.data_log_lock:
+            if not config.data_log:
+                print("No new data to write in the last 5 minutes.")
+                continue
+            # Copy and clear the global data log
+            data_to_save = config.data_log.copy()
+            config.data_log.clear()
+        write_data_to_csv(data_to_save)

@@ -1,11 +1,16 @@
 import os
 import time
 import requests
+import shutil
 import config
+
+# Ensure the csv_data_sent directory exists
+if not os.path.exists(config.CSV_SENT_DIR):
+    os.makedirs(config.CSV_SENT_DIR)
 
 def is_internet_available():
     try:
-        response = requests.get(config.UPLOAD_URL, timeout=5)
+        response = requests.get(config.TEST_URL, timeout=5)
         return response.status_code == 200
     except Exception:
         return False
@@ -22,8 +27,9 @@ def upload_csv_files():
                             files = {"file": (file, f, "text/csv")}
                             response = requests.post(config.UPLOAD_URL, files=files, timeout=10)
                         if response.status_code == 200:
-                            print(f"Uploaded {file} successfully. Removing local file.")
-                            os.remove(file_path)
+                            print(f"Uploaded {file} successfully. Moving file to csv_data_sent.")
+                            destination = os.path.join(config.CSV_SENT_DIR, file)
+                            shutil.move(file_path, destination)
                         else:
                             print(f"Failed to upload {file}. Status: {response.status_code}")
                     except Exception as e:

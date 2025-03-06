@@ -161,10 +161,12 @@ if __name__ == '__main__':
         # Start XBee-related threads and periodic tasks
         xbee_handler.start_threads()
         xbee_handler.start_periodic_tasks()
-        # Start the CSV writer thread
-        threading.Thread(target=data_processor.periodic_csv_writer, daemon=True).start()
+
         # Start the uploader thread
         threading.Thread(target=uploader.upload_csv_files, daemon=True).start()
+        # Start the CSV writer thread
+        threading.Thread(target=data_processor.periodic_csv_writer, daemon=True).start()
+        
         # Run the Flask-SocketIO server
         socketio.run(app, host='0.0.0.0', port=3336)
     finally:
