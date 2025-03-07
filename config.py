@@ -1,13 +1,14 @@
 import threading
 from queue import Queue
-
 import json
+import os
 
-# Load configuration from config.json
-with open("config.json", "r") as config_file:
-    config = json.load(config_file)
+# Load configuration from config.json safely
+CONFIG_PATH = os.path.join(os.path.dirname(__file__), "config.json")
+with open(CONFIG_PATH, "r") as config_file:
+    config_data = json.load(config_file)  
 
-
+SERVER_IP = config_data["SERVER_IP"]  
 
 ### XBee Configuration ###
 PORT = "/dev/cu.usbserial-AG0JYY5U"  # Serial port for XBee module
@@ -19,7 +20,7 @@ CSV_SENT_DIR = "csv_data_sent"  # Directory for successfully uploaded CSV files
 CHECK_INTERVAL = 60  # Time interval (in seconds) to check for connectivity and new files
 
 ### Server API Configuration ###
-SERVER_IP = config["SERVER_IP"]
+
 TEST_URL = f"http://{SERVER_IP}/tables"  # API endpoint to check connectivity
 UPLOAD_URL = f"http://{SERVER_IP}/upload"  # API endpoint to upload CSV files
 

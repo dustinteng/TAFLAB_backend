@@ -1,29 +1,58 @@
-import time
-import threading
-import json
-import datetime
-import traceback
-from flask import Flask, request
-from flask_socketio import SocketIO, emit
+from flask import Flask, request, jsonify
+from flask_socketio import SocketIO
 from flask_cors import CORS
-
 import config
-import xbee_handler
+from config import SERVER_IP
 import data_processor
+import threading
 import uploader
+import xbee_handler
 
-# Initialize Flask and SocketIO
+# Initialize Flask
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "*"}})
+
+# Enable CORS properly
+CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
+
 socketio = SocketIO(app,
                     cors_allowed_origins="*",
                     async_mode='threading',
                     ping_interval=60,
                     ping_timeout=180)
 
-# Set the Flask app and socketio in config for use in other modules
 config.app = app
 config.socketio = socketio
+
+@app.route("/get_available_tables", methods=["GET"])
+def get_available_tables():
+    """API route to list all tables"""
+    tables = data_processor.get_all_tables()
+    if not tables:
+        return jsonify({"error": "No tables available"}), 404
+    return jsonify(tables)
+
+# Run Flask server
+if __name__ == "__main__":
+    socketio.run(app, host="0.0.0.0", port=5001, debug=True)
+
+from flask import Flask, jsonify, request
+import data_processor
+import urllib.parse
+
+@app.route("/table/<path:table_name>", methods=["GET"])
+def get_boat_data(table_name):
+    """API route to serve boat data from a specific table."""
+    print(f"🔍 Received request for table: {table_name}")  # DEBUG PRINT
+
+    df = data_processor.fetch_boat_data(table_name)
+
+    if df.empty:
+        print(f"❌ No data found for table: {table_name}")  # DEBUG PRINT
+        return jsonify({"error": "No data available"}), 404
+
+    print(f"✅ Successfully fetched data for {table_name}")  # DEBUG PRINT
+    return jsonify(df.to_dict(orient="records"))
+
 
 # SocketIO Event Handlers
 
@@ -161,14 +190,12 @@ if __name__ == '__main__':
         # Start XBee-related threads and periodic tasks
         xbee_handler.start_threads()
         xbee_handler.start_periodic_tasks()
-
-        # Start the uploader thread
-        threading.Thread(target=uploader.upload_csv_files, daemon=True).start()
         # Start the CSV writer thread
         threading.Thread(target=data_processor.periodic_csv_writer, daemon=True).start()
-        
+        # Start the uploader thread
+        threading.Thread(target=uploader.upload_csv_files, daemon=True).start()
         # Run the Flask-SocketIO server
-        socketio.run(app, host='0.0.0.0', port=3336)
+        socketio.run(app, host='0.0.0.0', port=5001, debug=True)
     finally:
         if xbee_handler.device and xbee_handler.device.is_open():
             xbee_handler.device.close()
